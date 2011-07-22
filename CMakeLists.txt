@@ -7,17 +7,14 @@ project(
 	bubble_blast_solver
 )
 
-set(
-	CMAKE_MODULE_PATH
-	"${CMAKE_SOURCE_DIR}/CMakeModules;${CMAKE_MODULE_PATH}"
-)
-
 include(
 	FcpptCMakeUtils
 )
 
 find_package(
-	Boost 1.45.0 REQUIRED
+	Boost
+	1.44.0
+	REQUIRED
 )
 
 include_directories(

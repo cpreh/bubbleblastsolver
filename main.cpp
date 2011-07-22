@@ -40,7 +40,7 @@ typedef fcppt::container::array<
 	6
 > state_field;
 
-void
+bool
 calculate_step(
 	field,
 	field::size_type _x,
@@ -48,16 +48,16 @@ calculate_step(
 	unsigned _steps
 );
 
-void
+#include <iostream>
+#include <ostream>
+
+bool
 loop(
 	field const &_field,
 	unsigned const _steps
 )
 {
-	if(
-		_steps == 0
-	)
-		return;
+	field::size_type count(0);
 
 	for(
 		field::size_type y(0);
@@ -69,12 +69,43 @@ loop(
 			x < _field[y].size();
 			++x
 		)
-			calculate_step(
-				_field,
-				x,
-				y,
-				_steps - 1
-			);
+			count += _field[y][x];
+
+//	std::cout << "count: " <<  count << '\n';
+
+	if(
+		count == 0
+	)
+		return true;
+
+//	std::cout << "steps: " <<  _steps << '\n';
+
+	if(
+		_steps == 0
+	)
+		return false;
+
+	for(
+		field::size_type y(0);
+		y < _field.size();
+		++y
+	)
+		for(
+			field::size_type x(0);
+			x < _field[y].size();
+			++x
+		)
+			if(
+				calculate_step(
+					_field,
+					x,
+					y,
+					_steps - 1
+				)
+			)
+				return true;
+
+	return false;
 }
 
 unsigned
@@ -104,6 +135,8 @@ calculate_explosion(
 	field::size_type const _y
 )
 {
+//	std::cout << "calculate explosion " << _x << ' ' << _y << '\n';
+
 	state_field states;
 
 	for(
@@ -123,11 +156,15 @@ calculate_explosion(
 		| direction::north
 		| direction::east
 		| direction::south;
+	
+	_field[_y][_x] = 0;
 
-	bool done = true;
+	state_field new_states(
+		states
+	);
 
-	while(
-		done
+	for(
+		;;
 	)
 	{
 		for(
@@ -155,9 +192,11 @@ calculate_explosion(
 					&& x > 0
 				)
 				{
-					states[y][x-1] |= direction::west;
+					new_states[y][x-1] |= direction::west;
 
-					states[y][x].set(
+//					std::cout << "to west: " << y << ' ' <<  (x-1) << '\n';
+
+					new_states[y][x].set(
 						direction::west,
 						false
 					);
@@ -168,9 +207,11 @@ calculate_explosion(
 					&& y > 0
 				)
 				{
-					states[y-1][x] |= direction::north;
+					new_states[y-1][x] |= direction::north;
 
-					states[y][x].set(
+//					std::cout << "to north: " << (y-1) << ' ' <<  x << '\n';
+
+					new_states[y][x].set(
 						direction::north,
 						false
 					);
@@ -181,9 +222,11 @@ calculate_explosion(
 					&& x < states[y].size() - 1
 				)
 				{
-					states[y][x+1] |= direction::east;
+					new_states[y][x+1] |= direction::east;
 
-					states[y][x].set(
+//					std::cout << "to east: " << y << ' ' <<  (x+1) << '\n';
+
+					new_states[y][x].set(
 						direction::east,
 						false
 					);
@@ -194,9 +237,11 @@ calculate_explosion(
 					&& y < states.size() - 1
 				)
 				{
-					states[y+1][x] |= direction::south;
+					new_states[y+1][x] |= direction::south;
 
-					states[y][x].set(
+//					std::cout << "to south: " << (y+1) << ' ' <<  x << '\n';
+
+					new_states[y][x].set(
 						direction::south,
 						false
 					);
@@ -205,17 +250,17 @@ calculate_explosion(
 	
 		for(
 			state_field::size_type y(0);
-			y < states.size();
+			y < new_states.size();
 			++y
 		)
 			for(
 				state_field::size_type x(0);
-				x < states[y].size();
+				x < new_states[y].size();
 				++x
 			)
 			{
 				field_state const cur_state(
-					states[y][x]
+					new_states[y][x]
 				);
 
 				if(
@@ -223,80 +268,48 @@ calculate_explosion(
 					&& _field[y][x] != 0
 				)
 				{
-					switch(
-						_field[y][x]
-					)
-					{
-					case 0:
-						break;
-					case 1:
-						_field[y][x] = 0;
+					//std::cout << "hit" << y << ' ' << x << '\n';
 
-						states[y][x] =
+					state_field::size_type const elements(
+						count_bits(
+							cur_state
+						)
+					);
+
+					new_states[y][x].clear();
+
+					if(
+						_field[y][x]
+						<= elements
+					)
+						_field[y][x] = 0;
+					else
+						_field[y][x] -= elements;
+
+					if(
+						_field[y][x] == 0
+					)
+						new_states[y][x] =
 							field_state(direction::west)
 							| direction::north
 							| direction::east
 							| direction::south;
-						break;
-					case 2:
-					case 3:
-					case 4:
-						{
-							state_field::size_type const elements(
-								count_bits(
-									cur_state
-								)
-							);
-
-							if(
-								_field[y][x]
-								<= elements
-							)
-								_field[y][x] = 0;
-							else
-								_field[y][x] -= elements;
-
-							if(
-								_field[y][x] <= 1
-							)
-								states[y][x] =
-									field_state(direction::west)
-									| direction::north
-									| direction::east
-									| direction::south;
-						}
-					}
 				}
 			}
 
-		done = true;
 
-		for(
-			state_field::size_type y(0);
-			y < states.size();
-			++y
+		if(
+			states == new_states
 		)
-			for(
-				state_field::size_type x(0);
-				x < states[y].size();
-				++x
-			)
-			{
-				if(
-					states[y][x]
-				)
-				{
-					done = false;
-					break;
-				}
-			}
+			break;
 
+		states = new_states;
 	}
 
 	return _field;
 }
 
-void
+bool
 calculate_step(
 	field _field,
 	field::size_type const _x,
@@ -304,46 +317,72 @@ calculate_step(
 	unsigned const _steps
 )
 {
+	bool ret = false;
+
 	switch(
 		_field[_y][_x]
 	)
 	{
 	case 0:
-		return;
+		return false;;
 	case 1:
-		loop(
-			calculate_explosion(
-				_field,
-				_x,
-				_y
-			),
-			_steps
-		);
+		ret =
+			loop(
+				calculate_explosion(
+					_field,
+					_x,
+					_y
+				),
+				_steps
+			);
+		break;
 	case 2:
 	case 3:
 	case 4:
 		--_field[_y][_x];
 
-		loop(
-			_field,
-			_steps
-		);
+		ret =
+			loop(
+				_field,
+				_steps
+			);
 	}
+
+	if(
+		ret
+	)
+		std::cout << _x << ' ' << _y << '\n';
+	
+	return ret;
 }
+
+#include <iostream>
+#include <ostream>
 
 int
 main()
 {
 	field const myfield =
-	{
-	};
+	{{
+		{4, 0, 2, 0, 4},
+		{0, 1, 0, 2, 1},
+		{3, 2, 1, 1, 2},
+		{4, 3, 1, 0, 0},
+		{3, 4, 2, 3, 4},
+		{4, 4, 1, 0, 1}
+	}};
 
 	unsigned const steps(
 		6
 	);
 
-	loop(
-		myfield,
-		steps
-	);
+	std::cout
+		<<
+		std::boolalpha
+		<<
+		loop(
+			myfield,
+			steps
+		)
+		<< '\n';
 }
